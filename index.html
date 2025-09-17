@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador de Sistema de Irrigação</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .pump-card {
+            transition: all 0.3s ease;
+        }
+        .pump-status {
+            display: inline-block; padding: 2px 8px; border-radius: 9999px; font-size: 0.75rem; font-weight: 600;
+        }
+        .status-on { background-color: #22c55e; color: white; }
+        .status-off { background-color: #ef4444; color: white; }
+        .status-standby { background-color: #f59e0b; color: white; }
+        .status-active { background-color: #3b82f6; color: white; }
+        .status-failed { background-color: #4b5563; color: white; }
+        
+        #visual-simulation {
+            background: linear-gradient(to bottom, #87CEEB 0%, #a1c4fd 100%);
+        }
+        .surface-ground {
+            position: absolute; top: 25%; left: 0; right: 0; height: 50px; background: #65a30d; border-bottom: 5px solid #4d7c0f; z-index: 20;
+        }
+        .underground {
+            position: absolute; top: calc(25% + 50px); bottom: 0; left: 0; right: 0; background: #A1662F; z-index: 5;
+        }
+        .tank-visual {
+            position: absolute; width: 140px; height: 200px; background-color: #e5e7eb; border: 4px solid #9ca3af; border-radius: 10px; z-index: 10;
+        }
+        .pipe { background-color: #9ca3af; position: absolute; z-index: 15; }
+        .pipe.active .water-flow {
+            background: linear-gradient(90deg, #3b82f6 50%, #60a5fa 50%); background-size: 40px 100%; animation: flow-horizontal 0.8s linear infinite;
+        }
+        .pipe.vertical.active .water-flow {
+            background: linear-gradient(180deg, #3b82f6 50%, #60a5fa 50%); background-size: 100% 40px; animation: flow-vertical 0.8s linear infinite;
+        }
+        .water-flow { width: 100%; height: 100%; }
+        .pump-visual-icon {
+            position: absolute; z-index: 25; transition: all 0.3s ease; filter: drop-shadow(2px 2px 3px rgba(0,0,0,0.3));
+        }
+        .pump-visual-icon.active { animation: spin 2s linear infinite; }
+        .pump-visual-icon .pump-body { fill: #6b7280; }
+        .pump-visual-icon.active .pump-body { fill: #3b82f6; }
+        .pump-visual-icon.on .pump-body { fill: #22c55e; }
+        .pump-visual-icon.failed .pump-body { fill: #ef4444; animation: none; }
+
+        .sprinkler-head {
+            position: absolute; width: 20px; height: 30px; background-color: #6b7280; z-index: 21; border-radius: 5px 5px 0 0;
+        }
+        .sprinkler-spray {
+            position: absolute; bottom: 10px; left: 50%; transform-origin: bottom center; transform: translateX(-50%); z-index: 22;
+        }
+        .sprinkler-spray path {
+            fill: none;
+            stroke: rgba(96, 165, 250, 0.7);
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-dasharray: 2 10; /* Pontos menores, mais espaçados */
+        }
+
+        .spray-path-1 {
+            animation: spray-animation 1s linear infinite;
+        }
+        .spray-path-2 {
+             stroke-width: 1.5;
+             stroke-dasharray: 1 15;
+             animation: spray-animation 1.2s linear infinite 0.2s;
+        }
+        .spray-path-3 {
+             stroke: rgba(147, 197, 253, 0.6);
+             stroke-width: 1;
+             stroke-dasharray: 1 20;
+             animation: spray-animation 1.5s linear infinite 0.4s;
+        }
+        .hidden { display: none; }
+
+        @keyframes flow-horizontal { 0% { background-position: 40px 0; } 100% { background-position: 0 0; } }
+        @keyframes flow-vertical { 0% { background-position: 0 40px; } 100% { background-position: 0 0; } }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @keyframes spray-animation {
+            from { stroke-dashoffset: 0; }
+            to { stroke-dashoffset: -40; }
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto p-4 max-w-7xl">
+        <div class="bg-white rounded-2xl shadow-xl p-6">
+            <h1 class="text-3xl font-bold text-center text-gray-800 mb-2">Simulador de Sistema de Irrigação</h1>
+            <p class="text-center text-gray-500 mb-8">Controle as bombas no painel e observe o fluxo de água na simulação visual.</p>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <!-- Coluna de Controle (Esquerda) -->
+                <div id="control-panel">
+                    <div class="mb-8 p-6 bg-gray-50 rounded-xl border border-gray-200">
+                        <h2 class="text-xl font-semibold text-gray-700 mb-4 text-center">Reservatório Principal</h2>
+                        <div class="relative w-full h-16 bg-gray-200 rounded-lg overflow-hidden border-4 border-gray-300 shadow-inner"><div id="waterLevelBar" class="absolute bottom-0 w-full bg-blue-500 h-1/2"></div><div class="absolute inset-0 flex items-center justify-center"><span id="waterPercentage" class="text-xl font-bold text-white" style="text-shadow: 1px 1px 2px rgba(0,0,0,0.5);">50%</span></div></div>
+                        <p id="waterVolume" class="text-center text-md font-semibold text-gray-600 mt-2"></p>
+                    </div>
+                    <div>
+                        <h2 class="text-xl font-semibold text-gray-700 mb-4 text-center">Painel de Controlo das Bombas</h2>
+                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div id="pumpInletCard" class="pump-card bg-white p-5 rounded-lg border-2 border-blue-200 shadow-md"><div class="flex justify-between items-center mb-3"><h3 class="font-bold text-lg text-gray-800">Bomba de Entrada</h3><div id="inletPumpStatus" class="pump-status status-off">DESLIGADA</div></div><p class="text-sm text-gray-500 mb-4">Enche o reservatório.</p><div class="flex gap-2"><button id="toggleInletPump" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg">Ligar</button><button id="forceInletPump" class="w-full bg-cyan-500 hover:bg-cyan-600 text-white font-bold py-2 px-4 rounded-lg disabled:bg-gray-400">Forçar</button></div></div>
+                            <div id="pumpBackupCard" class="pump-card bg-white p-5 rounded-lg border-2 border-red-200 shadow-md"><div class="flex justify-between items-center mb-3"><h3 class="font-bold text-lg text-gray-800">Bomba Emergência</h3><div id="backupPumpStatus" class="pump-status status-off">OFF</div></div><p class="text-sm text-gray-500 mb-4">Ativa em caso de falha.</p></div>
+                            <div id="pumpOutlet1Card" class="pump-card bg-white p-4 rounded-lg border-2 border-green-200 shadow-sm"><div class="flex justify-between items-center mb-2"><h3 class="font-bold text-md text-gray-800">Irrigação 1</h3><div id="outletPump1Status" class="pump-status status-off">OFF</div></div><div class="flex gap-2"><button id="toggleOutletPump1" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-2 rounded-lg text-sm">Ligar</button><button id="failOutletPump1" class="w-full bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-2 rounded-lg text-sm">Falha</button></div></div>
+                            <div id="pumpOutlet2Card" class="pump-card bg-white p-4 rounded-lg border-2 border-green-200 shadow-sm"><div class="flex justify-between items-center mb-2"><h3 class="font-bold text-md text-gray-800">Irrigação 2</h3><div id="outletPump2Status" class="pump-status status-off">OFF</div></div><div class="flex gap-2"><button id="toggleOutletPump2" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-2 rounded-lg text-sm">Ligar</button><button id="failOutletPump2" class="w-full bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-2 rounded-lg text-sm">Falha</button></div></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Coluna Visual (Direita) -->
+                <div id="visual-simulation" class="rounded-xl border-2 border-gray-200 min-h-[500px] p-4 relative overflow-hidden">
+                    <div class="surface-ground"></div>
+                    <div class="underground">
+                        <!-- Sistema Subterrâneo -->
+                        <div class="tank-visual bottom-[20px] left-[20px]">
+                            <div id="visualWater" class="absolute bottom-0 w-full bg-blue-500/80"></div>
+                        </div>
+                        <svg id="pumpInVisual" class="pump-visual-icon w-12 h-12 left-[180px] bottom-[100px]" viewBox="0 0 24 24"><path class="pump-body" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg>
+                         <div id="pipeIn" class="pipe h-4 left-[225px] bottom-[116px] w-[calc(100%-240px)]"><div class="water-flow"></div></div>
+                        <div id="pipeMain" class="pipe h-4 left-[160px] top-[50px] w-[calc(100%-180px)]"><div class="water-flow"></div></div>
+                        <div id="pipeTankToMain" class="pipe vertical w-4 left-[140px] top-[50px] h-[calc(100%-190px)]"><div class="water-flow"></div></div>
+                        
+                        <svg id="pumpOut1Visual" class="pump-visual-icon w-10 h-10 left-[40%] top-[40px]" viewBox="0 0 24 24"><path class="pump-body" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/></svg>
+                        <svg id="pumpOut2Visual" class="pump-visual-icon w-10 h-10 left-[70%] top-[40px]" viewBox="0 0 24 24"><path class="pump-body" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/></svg>
+                        <svg id="pumpBackupVisual" class="pump-visual-icon w-10 h-10 right-[20px] top-[40px]" viewBox="0 0 24 24"><path class="pump-body" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/></svg>
+                    </div>
+                    
+                    <!-- Sistema de Superfície -->
+                    <div id="pipeToSprinkler1" class="pipe vertical w-4 left-[calc(40%+8px)] top-[25%] h-[100px]"><div class="water-flow"></div></div>
+                    <div id="pipeToSprinkler2" class="pipe vertical w-4 left-[calc(70%+8px)] top-[25%] h-[100px]"><div class="water-flow"></div></div>
+                    <div class="sprinkler-head" style="left: calc(40% + 8px); top: calc(25% + 20px);">
+                         <div id="sprinklerSpray1" class="sprinkler-spray hidden">
+                            <svg width="150" height="75" viewBox="0 0 150 75">
+                                <path class="spray-path-1" d="M0 75 Q 75 0 150 75"/>
+                                <path class="spray-path-2" d="M20 75 Q 75 20 130 75"/>
+                                <path class="spray-path-3" d="M40 75 Q 75 40 110 75"/>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="sprinkler-head" style="left: calc(70% + 8px); top: calc(25% + 20px);">
+                         <div id="sprinklerSpray2" class="sprinkler-spray hidden">
+                            <svg width="150" height="75" viewBox="0 0 150 75">
+                                <path class="spray-path-1" d="M0 75 Q 75 0 150 75"/>
+                                <path class="spray-path-2" d="M20 75 Q 75 20 130 75"/>
+                                <path class="spray-path-3" d="M40 75 Q 75 40 110 75"/>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const waterLevelBar = document.getElementById('waterLevelBar'), waterPercentageElement = document.getElementById('waterPercentage'), waterVolumeElement = document.getElementById('waterVolume'), visualWater = document.getElementById('visualWater');
+            const toggleInletPumpBtn = document.getElementById('toggleInletPump'), forceInletPumpBtn = document.getElementById('forceInletPump'), inletPumpStatusElement = document.getElementById('inletPumpStatus'), pumpInVisual = document.getElementById('pumpInVisual'), pipeIn = document.getElementById('pipeIn');
+            const toggleOutletPump1Btn = document.getElementById('toggleOutletPump1'), failOutletPump1Btn = document.getElementById('failOutletPump1'), outletPump1StatusElement = document.getElementById('outletPump1Status'), pumpOut1Visual = document.getElementById('pumpOut1Visual');
+            const toggleOutletPump2Btn = document.getElementById('toggleOutletPump2'), failOutletPump2Btn = document.getElementById('failOutletPump2'), outletPump2StatusElement = document.getElementById('outletPump2Status'), pumpOut2Visual = document.getElementById('pumpOut2Visual');
+            const backupPumpStatusElement = document.getElementById('backupPumpStatus'), pumpBackupVisual = document.getElementById('pumpBackupVisual');
+            const pipeMain = document.getElementById('pipeMain'), pipeTankToMain = document.getElementById('pipeTankToMain');
+            const pipeToSprinkler1 = document.getElementById('pipeToSprinkler1'), sprinklerSpray1 = document.getElementById('sprinklerSpray1');
+            const pipeToSprinkler2 = document.getElementById('pipeToSprinkler2'), sprinklerSpray2 = document.getElementById('sprinklerSpray2');
+
+            let state = { waterLevel: 50.0, inletPump: { masterOn: false, active: false, forceOn: false }, outletPump1: { on: false, failed: false }, outletPump2: { on: false, failed: false }, backupPump: { on: false } };
+            const rates = { inlet: 3.5, outlet: 1.2, backup: 1.5 };
+
+            function updateSimulation() {
+                let levelChange = 0;
+                state.backupPump.on = state.outletPump1.failed || state.outletPump2.failed;
+                if (state.inletPump.masterOn) {
+                    if (state.waterLevel <= 20) state.inletPump.active = true;
+                    else if (state.waterLevel >= 80) { state.inletPump.active = false; state.inletPump.forceOn = false; }
+                } else { state.inletPump.active = false; state.inletPump.forceOn = false; }
+                
+                const isinletPumpOn = state.inletPump.active || (state.inletPump.masterOn && state.inletPump.forceOn);
+                if (isinletPumpOn && state.waterLevel < 100) levelChange += rates.inlet;
+                if (state.outletPump1.on && !state.outletPump1.failed && state.waterLevel > 0) levelChange -= rates.outlet;
+                if (state.outletPump2.on && !state.outletPump2.failed && state.waterLevel > 0) levelChange -= rates.outlet;
+                if (state.backupPump.on && state.waterLevel > 0) levelChange -= rates.backup;
+
+                state.waterLevel = Math.max(0, Math.min(100, state.waterLevel + levelChange / 10));
+                updateUI(isinletPumpOn);
+            }
+
+            function updateUI(isinletPumpOn) {
+                const percentage = state.waterLevel;
+                [waterLevelBar, visualWater].forEach(el => el.style.height = `${percentage}%`);
+                waterPercentageElement.textContent = `${Math.round(percentage)}%`;
+                waterVolumeElement.textContent = `${((percentage / 100) * 1000).toFixed(1)} L / 1000 L`;
+
+                forceInletPumpBtn.disabled = !state.inletPump.masterOn;
+                if (state.inletPump.masterOn) {
+                    toggleInletPumpBtn.textContent = 'Desligar';
+                    if (state.inletPump.forceOn) { inletPumpStatusElement.className = 'pump-status status-active'; inletPumpStatusElement.textContent = 'FORÇADA'; forceInletPumpBtn.textContent = 'Parar';
+                    } else if (state.inletPump.active) { inletPumpStatusElement.className = 'pump-status status-active'; inletPumpStatusElement.textContent = 'ATIVA'; forceInletPumpBtn.textContent = 'Forçar';
+                    } else { inletPumpStatusElement.className = 'pump-status status-standby'; inletPumpStatusElement.textContent = 'EM ESPERA'; forceInletPumpBtn.textContent = 'Forçar'; }
+                } else {
+                    toggleInletPumpBtn.textContent = 'Ligar'; inletPumpStatusElement.className = 'pump-status status-off'; inletPumpStatusElement.textContent = 'DESLIGADA'; forceInletPumpBtn.textContent = 'Forçar';
+                }
+                
+                updateOutletPumpUI(1, outletPump1StatusElement, failOutletPump1Btn, pumpOut1Visual);
+                updateOutletPumpUI(2, outletPump2StatusElement, failOutletPump2Btn, pumpOut2Visual);
+
+                backupPumpStatusElement.className = state.backupPump.on ? 'pump-status status-on' : 'pump-status status-off';
+                backupPumpStatusElement.textContent = state.backupPump.on ? 'ON' : 'OFF';
+                
+                pumpInVisual.classList.toggle('active', isinletPumpOn);
+                pipeIn.classList.toggle('active', isinletPumpOn);
+                pumpBackupVisual.classList.toggle('on', state.backupPump.on);
+                
+                const isAnyOutletOn = (state.outletPump1.on && !state.outletPump1.failed) || (state.outletPump2.on && !state.outletPump2.failed) || state.backupPump.on;
+                pipeMain.classList.toggle('active', isAnyOutletOn && state.waterLevel > 0);
+                pipeTankToMain.classList.toggle('active', isAnyOutletOn && state.waterLevel > 0);
+                
+                const pump1On = state.outletPump1.on && !state.outletPump1.failed && state.waterLevel > 0;
+                pipeToSprinkler1.classList.toggle('active', pump1On);
+                sprinklerSpray1.classList.toggle('hidden', !pump1On);
+
+                const pump2On = state.outletPump2.on && !state.outletPump2.failed && state.waterLevel > 0;
+                pipeToSprinkler2.classList.toggle('active', pump2On);
+                sprinklerSpray2.classList.toggle('hidden', !pump2On);
+
+                 if (state.backupPump.on && state.waterLevel > 0) {
+                    pipeToSprinkler1.classList.add('active');
+                    sprinklerSpray1.classList.remove('hidden');
+                    pipeToSprinkler2.classList.add('active');
+                    sprinklerSpray2.classList.remove('hidden');
+                }
+            }
+            
+            function updateOutletPumpUI(num, statusEl, failBtn, pumpVisual) {
+                const pump = state[`outletPump${num}`];
+                const toggleBtn = document.getElementById(`toggleOutletPump${num}`);
+                failBtn.textContent = pump.failed ? 'Consertar' : 'Falha';
+                failBtn.classList.toggle('bg-yellow-500', !pump.failed); failBtn.classList.toggle('bg-teal-500', pump.failed);
+                toggleBtn.disabled = pump.failed;
+                pumpVisual.classList.toggle('failed', pump.failed); pumpVisual.classList.toggle('on', pump.on && !pump.failed); pumpVisual.classList.toggle('active', pump.on && !pump.failed);
+                if (pump.failed) { statusEl.className = 'pump-status status-failed'; statusEl.textContent = 'FALHA';
+                } else if (pump.on) { statusEl.className = 'pump-status status-on'; statusEl.textContent = 'ON'; toggleBtn.textContent = 'Desligar';
+                } else { statusEl.className = 'pump-status status-off'; statusEl.textContent = 'OFF'; toggleBtn.textContent = 'Ligar'; }
+            }
+
+            toggleInletPumpBtn.addEventListener('click', () => { state.inletPump.masterOn = !state.inletPump.masterOn; });
+            forceInletPumpBtn.addEventListener('click', () => { if(state.inletPump.masterOn) state.inletPump.forceOn = !state.inletPump.forceOn; });
+            [1, 2].forEach(num => {
+                document.getElementById(`toggleOutletPump${num}`).addEventListener('click', () => { if (!state[`outletPump${num}`].failed) state[`outletPump${num}`].on = !state[`outletPump${num}`].on; });
+                document.getElementById(`failOutletPump${num}`).addEventListener('click', () => {
+                    state[`outletPump${num}`].failed = !state[`outletPump${num}`].failed;
+                    if (state[`outletPump${num}`].failed) state[`outletPump${num}`].on = false;
+                });
+            });
+
+            setInterval(updateSimulation, 100);
+            updateUI(false);
+        });
+    </script>
+</body>
+</html>
+
+
+
+

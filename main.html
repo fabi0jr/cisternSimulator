@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador de Cisterna</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .pump-card {
+            transition: all 0.3s ease;
+        }
+        .pump-status {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        .status-on { background-color: #22c55e; color: white; }
+        .status-off { background-color: #ef4444; color: white; }
+        .status-standby { background-color: #f59e0b; color: white; }
+        .status-active { background-color: #3b82f6; color: white; }
+        .status-failed { background-color: #4b5563; color: white; }
+        .tank-water {
+            transition: height 0.5s ease-out;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+
+    <div class="container mx-auto p-4 md:p-8 max-w-4xl">
+        <div class="bg-white rounded-2xl shadow-xl p-6 md:p-8">
+            <h1 class="text-3xl font-bold text-center text-gray-800 mb-2">Simulador de Sistema de Cisterna</h1>
+            <p class="text-center text-gray-500 mb-8">Controle as bombas e gerencie o nível de água do reservatório.</p>
+
+            <!-- Seção do Tanque -->
+            <div class="mb-8 p-6 bg-gray-50 rounded-xl border border-gray-200">
+                <h2 class="text-xl font-semibold text-gray-700 mb-4 text-center">Reservatório Principal</h2>
+                <div class="relative w-full h-48 bg-gray-200 rounded-lg overflow-hidden border-4 border-gray-300 shadow-inner">
+                    <div id="waterLevel" class="absolute bottom-0 w-full bg-blue-500 tank-water"></div>
+                    <div class="absolute inset-0 flex items-center justify-center">
+                        <span id="waterPercentage" class="text-3xl font-bold text-white" style="text-shadow: 1px 1px 2px rgba(0,0,0,0.5);">50%</span>
+                    </div>
+                </div>
+                <p id="waterVolume" class="text-center text-lg font-semibold text-gray-600 mt-3"></p>
+            </div>
+
+            <!-- Painel de Controle das Bombas -->
+            <div>
+                <h2 class="text-xl font-semibold text-gray-700 mb-4 text-center">Painel de Controle</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    
+                    <!-- Bomba de Entrada -->
+                    <div id="pumpInletCard" class="pump-card bg-white p-5 rounded-lg border-2 border-blue-200 shadow-md">
+                        <div class="flex justify-between items-center mb-3">
+                            <h3 class="font-bold text-lg text-gray-800">Bomba de Entrada</h3>
+                            <div id="inletPumpStatus" class="pump-status status-off">DESLIGADA</div>
+                        </div>
+                        <p class="text-sm text-gray-500 mb-4">Enche o reservatório. Opera automaticamente entre 20% e 80% quando ligada.</p>
+                        <div class="flex gap-2">
+                            <button id="toggleInletPump" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+                                Ligar Bomba
+                            </button>
+                             <button id="forceInletPump" class="w-full bg-cyan-500 hover:bg-cyan-600 text-white font-bold py-2 px-4 rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed">
+                                Forçar
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Bombas de Irrigação -->
+                    <div class="md:col-span-2 lg:col-span-1 grid grid-rows-2 gap-6">
+                         <!-- Bomba de Irrigação 1 -->
+                        <div id="pumpOutlet1Card" class="pump-card bg-white p-4 rounded-lg border-2 border-green-200 shadow-sm">
+                            <div class="flex justify-between items-center mb-2">
+                                <h3 class="font-bold text-md text-gray-800">Irrigação 1</h3>
+                                <div id="outletPump1Status" class="pump-status status-off">OFF</div>
+                            </div>
+                             <div class="flex gap-2">
+                                <button id="toggleOutletPump1" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-2 rounded-lg text-sm transition-colors">Ligar</button>
+                                <button id="failOutletPump1" class="w-full bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-2 rounded-lg text-sm transition-colors">Simular Falha</button>
+                            </div>
+                        </div>
+                        <!-- Bomba de Irrigação 2 -->
+                        <div id="pumpOutlet2Card" class="pump-card bg-white p-4 rounded-lg border-2 border-green-200 shadow-sm">
+                           <div class="flex justify-between items-center mb-2">
+                                <h3 class="font-bold text-md text-gray-800">Irrigação 2</h3>
+                                <div id="outletPump2Status" class="pump-status status-off">OFF</div>
+                            </div>
+                            <div class="flex gap-2">
+                                <button id="toggleOutletPump2" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-2 rounded-lg text-sm transition-colors">Ligar</button>
+                                <button id="failOutletPump2" class="w-full bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-2 rounded-lg text-sm transition-colors">Simular Falha</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Bomba de Emergência -->
+                    <div id="pumpBackupCard" class="pump-card bg-white p-5 rounded-lg border-2 border-red-200 shadow-md">
+                        <div class="flex justify-between items-center mb-3">
+                            <h3 class="font-bold text-lg text-gray-800">Bomba de Emergência</h3>
+                            <div id="backupPumpStatus" class="pump-status status-off">OFF</div>
+                        </div>
+                        <p class="text-sm text-gray-500 mb-4">Ativa automaticamente caso uma das bombas de irrigação apresente falha.</p>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Elementos da UI
+            const waterLevelElement = document.getElementById('waterLevel');
+            const waterPercentageElement = document.getElementById('waterPercentage');
+            const waterVolumeElement = document.getElementById('waterVolume');
+            
+            // Bombas de Entrada
+            const toggleInletPumpBtn = document.getElementById('toggleInletPump');
+            const forceInletPumpBtn = document.getElementById('forceInletPump');
+            const inletPumpStatusElement = document.getElementById('inletPumpStatus');
+            const pumpInletCard = document.getElementById('pumpInletCard');
+
+            // Bombas de Saída 1
+            const toggleOutletPump1Btn = document.getElementById('toggleOutletPump1');
+            const failOutletPump1Btn = document.getElementById('failOutletPump1');
+            const outletPump1StatusElement = document.getElementById('outletPump1Status');
+            const pumpOutlet1Card = document.getElementById('pumpOutlet1Card');
+
+            // Bombas de Saída 2
+            const toggleOutletPump2Btn = document.getElementById('toggleOutletPump2');
+            const failOutletPump2Btn = document.getElementById('failOutletPump2');
+            const outletPump2StatusElement = document.getElementById('outletPump2Status');
+            const pumpOutlet2Card = document.getElementById('pumpOutlet2Card');
+            
+            // Bomba de Emergência
+            const toggleBackupPumpBtn = document.getElementById('toggleBackupPump');
+            const backupPumpStatusElement = document.getElementById('backupPumpStatus');
+            const pumpBackupCard = document.getElementById('pumpBackupCard');
+
+            // Estado da simulação
+            let state = {
+                waterLevel: 50.0, // %
+                inletPump: { masterOn: false, active: false, forceOn: false },
+                outletPump1: { on: false, failed: false },
+                outletPump2: { on: false, failed: false },
+                backupPump: { on: false },
+            };
+
+            const rates = {
+                inlet: 3.5,   // % por segundo - Mais forte que a saída máxima (1.2 + 1.2 = 2.4 ou 1.2 + 1.5 = 2.7)
+                outlet: 1.2,  // % por segundo
+                backup: 1.5   // % por segundo
+            };
+
+            // --- FUNÇÕES DE LÓGICA ---
+            
+            function updateSimulation() {
+                let levelChange = 0;
+
+                // Lógica da Bomba de Emergência (Automática)
+                if (state.outletPump1.failed || state.outletPump2.failed) {
+                    state.backupPump.on = true;
+                } else {
+                    state.backupPump.on = false;
+                }
+
+                // Lógica da Bomba de Entrada
+                if (state.inletPump.masterOn) {
+                    if (state.waterLevel <= 20) {
+                        state.inletPump.active = true;
+                    } else if (state.waterLevel >= 80) {
+                        state.inletPump.active = false;
+                        state.inletPump.forceOn = false; // Desativa o modo forçado quando o tanque está cheio
+                    }
+                } else {
+                    state.inletPump.active = false;
+                    state.inletPump.forceOn = false; // Desativa se a bomba principal for desligada
+                }
+                
+                if (state.inletPump.active || (state.inletPump.masterOn && state.inletPump.forceOn)) {
+                    levelChange += rates.inlet;
+                }
+
+                // Lógica das Bombas de Saída
+                if (state.outletPump1.on && !state.outletPump1.failed) {
+                    levelChange -= rates.outlet;
+                }
+                if (state.outletPump2.on && !state.outletPump2.failed) {
+                    levelChange -= rates.outlet;
+                }
+                if (state.backupPump.on) {
+                    levelChange -= rates.backup;
+                }
+
+                state.waterLevel += levelChange / 10; // Dividido por 10 para suavizar (100ms * 10 = 1s)
+                
+                // Limites do nível de água
+                if (state.waterLevel > 100) state.waterLevel = 100;
+                if (state.waterLevel < 0) state.waterLevel = 0;
+
+                updateUI();
+            }
+
+            // --- FUNÇÕES DE ATUALIZAÇÃO DA UI ---
+
+            function updateUI() {
+                // Atualiza o tanque
+                waterLevelElement.style.height = `${state.waterLevel}%`;
+                waterPercentageElement.textContent = `${Math.round(state.waterLevel)}%`;
+                const currentLiters = (state.waterLevel / 100) * 1000;
+                waterVolumeElement.textContent = `${currentLiters.toFixed(1)} L / 1000 L`;
+
+                // Atualiza Bomba de Entrada
+                if (state.inletPump.masterOn) {
+                    toggleInletPumpBtn.textContent = 'Desligar Bomba';
+                    toggleInletPumpBtn.classList.remove('bg-blue-500', 'hover:bg-blue-600');
+                    toggleInletPumpBtn.classList.add('bg-gray-500', 'hover:bg-gray-600');
+                    pumpInletCard.classList.remove('border-blue-200');
+                    pumpInletCard.classList.add('border-blue-500');
+                    
+                    if (state.inletPump.forceOn) {
+                        inletPumpStatusElement.className = 'pump-status status-active';
+                        inletPumpStatusElement.textContent = 'FORÇADA';
+                        forceInletPumpBtn.textContent = 'Parar';
+                    } else if (state.inletPump.active) {
+                        inletPumpStatusElement.className = 'pump-status status-active';
+                        inletPumpStatusElement.textContent = 'ATIVA';
+                        forceInletPumpBtn.textContent = 'Forçar';
+                    } else {
+                        inletPumpStatusElement.className = 'pump-status status-standby';
+                        inletPumpStatusElement.textContent = 'EM ESPERA';
+                        forceInletPumpBtn.textContent = 'Forçar';
+                    }
+                    forceInletPumpBtn.disabled = false;
+                } else {
+                    toggleInletPumpBtn.textContent = 'Ligar Bomba';
+                    toggleInletPumpBtn.classList.add('bg-blue-500', 'hover:bg-blue-600');
+                    toggleInletPumpBtn.classList.remove('bg-gray-500', 'hover:bg-gray-600');
+                    inletPumpStatusElement.className = 'pump-status status-off';
+                    inletPumpStatusElement.textContent = 'DESLIGADA';
+                    pumpInletCard.classList.add('border-blue-200');
+                    pumpInletCard.classList.remove('border-blue-500');
+                    forceInletPumpBtn.textContent = 'Forçar';
+                    forceInletPumpBtn.disabled = true;
+                }
+
+                // Atualiza Bomba de Irrigação 1
+                updateOutletPumpUI(1, toggleOutletPump1Btn, outletPump1StatusElement, pumpOutlet1Card, failOutletPump1Btn);
+                
+                // Atualiza Bomba de Irrigação 2
+                updateOutletPumpUI(2, toggleOutletPump2Btn, outletPump2StatusElement, pumpOutlet2Card, failOutletPump2Btn);
+
+                // Atualiza Bomba de Emergência
+                if (state.backupPump.on) {
+                    backupPumpStatusElement.className = 'pump-status status-on';
+                    backupPumpStatusElement.textContent = 'ON';
+                    pumpBackupCard.classList.add('border-red-500');
+                    pumpBackupCard.classList.remove('border-red-200');
+                } else {
+                    backupPumpStatusElement.className = 'pump-status status-off';
+                    backupPumpStatusElement.textContent = 'OFF';
+                    pumpBackupCard.classList.remove('border-red-500');
+                    pumpBackupCard.classList.add('border-red-200');
+                }
+            }
+            
+            function updateOutletPumpUI(pumpNumber, toggleBtn, statusEl, cardEl, failBtn) {
+                const pumpState = state[`outletPump${pumpNumber}`];
+
+                // Configura o botão de Falha/Conserto
+                if (pumpState.failed) {
+                    failBtn.textContent = 'Consertar';
+                    failBtn.classList.remove('bg-yellow-500', 'hover:bg-yellow-600');
+                    failBtn.classList.add('bg-teal-500', 'hover:bg-teal-600');
+                } else {
+                    failBtn.textContent = 'Simular Falha';
+                    failBtn.classList.add('bg-yellow-500', 'hover:bg-yellow-600');
+                    failBtn.classList.remove('bg-teal-500', 'hover:bg-teal-600');
+                }
+                
+                // Configura o restante da UI da bomba com base no estado
+                if (pumpState.failed) {
+                    statusEl.className = 'pump-status status-failed';
+                    statusEl.textContent = 'FALHA';
+                    toggleBtn.disabled = true;
+                    toggleBtn.textContent = 'Lig/Desl';
+                    toggleBtn.classList.add('disabled:bg-gray-400');
+                    cardEl.classList.add('border-gray-500');
+                    cardEl.classList.remove('border-green-200', 'border-green-500');
+                } else if (pumpState.on) {
+                    statusEl.className = 'pump-status status-on';
+                    statusEl.textContent = 'ON';
+                    toggleBtn.textContent = 'Desligar';
+                    toggleBtn.disabled = false;
+                    toggleBtn.classList.remove('disabled:bg-gray-400');
+                    cardEl.classList.add('border-green-500');
+                    cardEl.classList.remove('border-green-200', 'border-gray-500');
+                } else { // Desligada e sem falha
+                    statusEl.className = 'pump-status status-off';
+                    statusEl.textContent = 'OFF';
+                    toggleBtn.textContent = 'Ligar';
+                    toggleBtn.disabled = false;
+                    toggleBtn.classList.remove('disabled:bg-gray-400');
+                    cardEl.classList.remove('border-green-500', 'border-gray-500');
+                    cardEl.classList.add('border-green-200');
+                }
+            }
+
+
+            // --- EVENT LISTENERS ---
+
+            toggleInletPumpBtn.addEventListener('click', () => {
+                state.inletPump.masterOn = !state.inletPump.masterOn;
+            });
+
+            forceInletPumpBtn.addEventListener('click', () => {
+                if(state.inletPump.masterOn){
+                    state.inletPump.forceOn = !state.inletPump.forceOn;
+                }
+            });
+            
+            toggleOutletPump1Btn.addEventListener('click', () => {
+                if (!state.outletPump1.failed) state.outletPump1.on = !state.outletPump1.on;
+            });
+
+            failOutletPump1Btn.addEventListener('click', () => {
+                state.outletPump1.failed = !state.outletPump1.failed; // Alterna o estado de falha
+                if (state.outletPump1.failed) {
+                    state.outletPump1.on = false; // Desliga a bomba ao falhar
+                }
+            });
+
+            toggleOutletPump2Btn.addEventListener('click', () => {
+                if (!state.outletPump2.failed) state.outletPump2.on = !state.outletPump2.on;
+            });
+
+            failOutletPump2Btn.addEventListener('click', () => {
+                state.outletPump2.failed = !state.outletPump2.failed; // Alterna o estado de falha
+                if (state.outletPump2.failed) {
+                    state.outletPump2.on = false; // Desliga a bomba ao falhar
+                }
+            });
+            
+            // O Event listener para a bomba de emergência foi removido pois agora é automática.
+
+
+            // Iniciar a simulação
+            setInterval(updateSimulation, 100); // Executa a lógica a cada 100ms
+            updateUI(); // Chamada inicial para configurar a UI
+        });
+    </script>
+
+</body>
+</html>
+
+
